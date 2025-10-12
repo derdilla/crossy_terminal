@@ -33,6 +33,9 @@ fn main() {
             }
         }
 
+        // TODO: make this a stable cycle
+        map.update();
+
         stdout.queue(terminal::BeginSynchronizedUpdate).unwrap();
         stdout.queue(cursor::MoveTo(0,0)).unwrap();
         stdout.queue(terminal::Clear(terminal::ClearType::FromCursorDown)).unwrap();
