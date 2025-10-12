@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
+use std::ops::Div;
 use rayon::prelude::*;
-use crate::stripe::{Block, GreenStripe, Stripe};
+use crate::stripe::{Block, GreenStripe, Stripe, STRIPE_LENGTH};
 
 const ROW_COUNT: usize = 20;
 
@@ -28,7 +29,7 @@ impl MapState {
         }
         MapState {
             state: VecDeque::from(state),
-            player_x: 3,
+            player_x: STRIPE_LENGTH.div(2) as u8,
             player_down: 0,
             score: 0,
             alive: true,
@@ -59,7 +60,7 @@ impl MapState {
     }
 
     pub fn right(&mut self) {
-        if self.player_x < 6 {
+        if self.player_x < (STRIPE_LENGTH - 1) as u8 {
             self.player_x += 1;
         }
         self.detect_death();

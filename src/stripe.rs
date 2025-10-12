@@ -1,6 +1,12 @@
+use std::ops::Div;
 use crossterm::style::Stylize;
 use rand::distr::weighted::WeightedIndex;
 use rand::prelude::Distribution;
+
+// TODO: add 2 for padding, allowing to display more from the side
+pub const STRIPE_LENGTH: usize = 7;
+
+const TILE_WIDTH: usize = 3;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Stripe {
@@ -52,14 +58,14 @@ impl Stripe {
 
 #[derive(Debug, Copy, Clone)]
 pub struct GreenStripe {
-    trees: [bool; 7],
+    trees: [bool; STRIPE_LENGTH],
 }
 
 impl GreenStripe {
     pub fn generate() -> Self {
-        let mut trees = [false; 7];
+        let mut trees = [false; STRIPE_LENGTH];
         rand::fill(&mut trees);
-        trees[3] = false;
+        trees[STRIPE_LENGTH.div(2)] = false;
         GreenStripe { trees }
     }
 
@@ -72,7 +78,7 @@ impl GreenStripe {
     fn visualize(&self) -> StripeRender {
         let tree = Block::Green;
         let grass = Block::BrightGreen;
-        let blocks: [Block; 7] = core::array::from_fn(|i| {
+        let blocks: [Block; STRIPE_LENGTH] = core::array::from_fn(|i| {
             if self.trees[i] { tree } else { grass }
         });
         StripeRender::new(blocks, None)
@@ -113,9 +119,9 @@ impl Railroad {
 
     fn visualize(&self) -> StripeRender {
         let blocks = match self.cycle_pos {
-            0..3 => [Block::Red; 7],
-            3..12 => [Block::DarkYellow; 7],
-            _ => [Block::Gray; 7],
+            0..3 => [Block::Red; STRIPE_LENGTH],
+            3..12 => [Block::DarkYellow; STRIPE_LENGTH],
+            _ => [Block::Gray; STRIPE_LENGTH],
         };
         StripeRender::new(blocks, None)
     }
@@ -123,7 +129,7 @@ impl Railroad {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Road {
-    cars: [bool; 7],
+    cars: [bool; STRIPE_LENGTH],
     left: bool,
     current_car_len: i32,
     /// Cycles in 0..=2.
@@ -133,12 +139,12 @@ pub struct Road {
 impl Road {
     fn generate() -> Self {
         let mut road = Road {
-            cars: [false; 7],
+            cars: [false; STRIPE_LENGTH],
             current_car_len: 0,
             offset: 0,
             left: rand::random(),
         };
-        for _ in 0..7 {
+        for _ in 0..STRIPE_LENGTH {
             road.advance_road();
         }
 
@@ -147,7 +153,7 @@ impl Road {
 
     fn update(&mut self) {
         self.offset += 1;
-        self.offset %= 3;
+        self.offset %= TILE_WIDTH;
         if self.offset == 0 {
             self.advance_road();
         }
@@ -172,10 +178,10 @@ impl Road {
 
         if self.left {
             self.cars.rotate_left(1);
-            self.cars[6] = new_tile;
+            self.cars[STRIPE_LENGTH - 1] = new_tile;
         } else {
             self.cars.rotate_right(1);
-            self.cars[6] = new_tile;
+            self.cars[0] = new_tile;
         }
     }
 
@@ -186,7 +192,7 @@ impl Road {
     fn visualize(&self) -> StripeRender {
         let car = Block::Red;
         let road = Block::Gray;
-        let blocks: [Block; 7] = core::array::from_fn(|i| {
+        let blocks: [Block; STRIPE_LENGTH] = core::array::from_fn(|i| {
             if self.cars[i] { car } else { road }
         });
         StripeRender::new(blocks, Some(Offset {
@@ -211,7 +217,7 @@ pub enum Block {
 
 impl Block {
     fn color_coded(&self) -> String {
-        self.render_len(3)
+        self.render_len(TILE_WIDTH)
     }
 
     fn render_len(&self, len: usize) -> String {
@@ -230,36 +236,34 @@ impl Block {
 }
 
 pub struct StripeRender {
-    blocks: [Block; 7],
+    blocks: [Block; STRIPE_LENGTH],
 
     offset: Option<Offset>,
 
-    overlay: [Option<Block>; 7],
+    overlay: [Option<Block>; STRIPE_LENGTH],
 }
 
 impl StripeRender {
     fn default() -> Self {
-        Self::new([Block::Black; 7], None)
+        Self::new([Block::Black; STRIPE_LENGTH], None)
     }
 
-    fn new(blocks: [Block; 7], offset: Option<Offset>) -> Self {
+    fn new(blocks: [Block; STRIPE_LENGTH], offset: Option<Offset>) -> Self {
         StripeRender {
             blocks,
             offset,
-            overlay: [None; 7],
+            overlay: [None; STRIPE_LENGTH],
         }
     }
 
     pub fn render(&self) -> String {
-        // TODO:
-        // - Fix displaying overlay at start/end position
         let mut res = String::new();
         let mut blocks = self.blocks.iter().enumerate();
 
         if let Some(offset) = &self.offset {
             if offset.left {
                 let (_, first) = blocks.next().unwrap();
-                res.push_str(&first.render_len((3 - offset.offset).max(0)));
+                res.push_str(&first.render_len((TILE_WIDTH - offset.offset).max(0)));
             } else {
                 res.push_str(&offset.fill.render_len(offset.offset))
             }
@@ -271,11 +275,11 @@ impl StripeRender {
 
             if let Some(Some(_overlay)) = self.overlay.get(idx+1) {
                 if let Some(offset) = &self.offset {
-                    rendered_block = Some(block.render_len((3 - offset.offset).max(0)));
+                    rendered_block = Some(block.render_len((TILE_WIDTH - offset.offset).max(0)));
                 }
             } else if idx >= 2 && let Some(Some(_overlay)) = self.overlay.get(idx-1) {
                 if let Some(offset) = &self.offset {
-                    rendered_block = Some(block.render_len(offset.offset.min(3)));
+                    rendered_block = Some(block.render_len(offset.offset.min(TILE_WIDTH)));
                 }
             }
             if let Some(overlay) = self.overlay[idx] {
