@@ -253,7 +253,6 @@ impl StripeRender {
     pub fn render(&self) -> String {
         // TODO:
         // - Fix displaying overlay at start/end position
-        // - Don't render Offset for overlay
         let mut res = String::new();
         let mut blocks = self.blocks.iter().enumerate();
 
@@ -268,10 +267,22 @@ impl StripeRender {
 
         while let Some((idx, block)) = blocks.next() {
             let mut block = *block;
+            let mut rendered_block = None;
+
+            if let Some(Some(_overlay)) = self.overlay.get(idx+1) {
+                if let Some(offset) = &self.offset {
+                    rendered_block = Some(block.render_len((3 - offset.offset).max(0)));
+                }
+            } else if idx >= 2 && let Some(Some(_overlay)) = self.overlay.get(idx-1) {
+                if let Some(offset) = &self.offset {
+                    rendered_block = Some(block.render_len(offset.offset.min(3)));
+                }
+            }
             if let Some(overlay) = self.overlay[idx] {
                 block = overlay;
             }
-            res.push_str(&block.color_coded());
+
+            res.push_str(&rendered_block.unwrap_or(block.color_coded()));
             if idx == 5 && self.offset.as_ref().is_some_and(|o| !o.left) {
                 break;
             }
