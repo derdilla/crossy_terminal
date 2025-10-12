@@ -56,7 +56,7 @@ pub struct GreenStripe {
 }
 
 impl GreenStripe {
-    fn generate() -> Self {
+    pub fn generate() -> Self {
         let mut trees = [false; 7];
         rand::fill(&mut trees);
         trees[3] = false;
@@ -83,7 +83,7 @@ impl GreenStripe {
 ///
 /// [cycle_pos] is initialized to cycle length and counts downward.
 /// - On values 0..3 it is deadly
-/// - On values 3..8 it warns
+/// - On values 3..12 it warns
 #[derive(Debug, Copy, Clone)]
 pub struct Railroad {
     cycle_length: usize,
@@ -114,7 +114,7 @@ impl Railroad {
     fn visualize(&self) -> StripeRender {
         let blocks = match self.cycle_pos {
             0..3 => [Block::Red; 7],
-            3..8 => [Block::DarkYellow; 7],
+            3..12 => [Block::DarkYellow; 7],
             _ => [Block::Gray; 7],
         };
         StripeRender::new(blocks, None)

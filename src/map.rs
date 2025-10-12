@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use rayon::prelude::*;
-use crate::stripe::{Block, Stripe};
+use crate::stripe::{Block, GreenStripe, Stripe};
 
 const ROW_COUNT: usize = 20;
 
@@ -23,6 +23,9 @@ impl MapState {
     pub fn new() -> MapState {
         let mut state = [Stripe::Empty; ROW_COUNT];
         state.fill_with(Stripe::generate);
+        for i in 0..MAX_PLAYER_Y_INDEX + 1 {
+            state[i] = Stripe::Green(GreenStripe::generate());
+        }
         MapState {
             state: VecDeque::from(state),
             player_x: 3,
