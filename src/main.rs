@@ -33,9 +33,12 @@ fn main() {
             }
         }
 
+        stdout.queue(terminal::BeginSynchronizedUpdate).unwrap();
         stdout.queue(cursor::MoveTo(0,0)).unwrap();
         stdout.queue(terminal::Clear(terminal::ClearType::FromCursorDown)).unwrap();
         stdout.write_all(format!("Use q to quit\n\r{}", map.render()).as_bytes()).unwrap();
+        stdout.queue(terminal::EndSynchronizedUpdate).unwrap();
+        stdout.flush().unwrap();
     }
 
     terminal::disable_raw_mode().unwrap();
