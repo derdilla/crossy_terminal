@@ -40,9 +40,9 @@ impl Stripe {
         }
     }
 
-    pub fn visualize(&self) -> Vec<Block> {
+    pub fn visualize(&self) -> StripeRender {
         match self {
-            Stripe::Empty => vec![], // Uninitialized
+            Stripe::Empty => StripeRender::default(),
             Stripe::Green(stripe) => stripe.visualize(),
             Stripe::Rail(stripe) => stripe.visualize(),
             Stripe::Road(stripe) => stripe.visualize(),
@@ -69,12 +69,13 @@ impl GreenStripe {
         self.trees[x as usize]
     }
 
-    fn visualize(&self) -> Vec<Block> {
+    fn visualize(&self) -> StripeRender {
         let tree = Block::Green;
         let grass = Block::BrightGreen;
-        self.trees
-            .map(|t| if t { tree } else { grass })
-            .to_vec()
+        let blocks: [Block; 7] = core::array::from_fn(|i| {
+            if self.trees[i] { tree } else { grass }
+        });
+        StripeRender::new(blocks, None)
     }
 }
 
@@ -110,19 +111,20 @@ impl Railroad {
         self.cycle_pos < 3
     }
 
-    fn visualize(&self) -> Vec<Block> {
-        match self.cycle_pos {
+    fn visualize(&self) -> StripeRender {
+        let blocks = match self.cycle_pos {
             0..3 => [Block::Red; 7],
             3..8 => [Block::DarkYellow; 7],
             _ => [Block::Gray; 7],
-        }.to_vec()
+        };
+        StripeRender::new(blocks, None)
     }
 }
 
 #[derive(Debug, Copy, Clone)]
-struct Road {
+pub struct Road {
     cars: [bool; 7],
-    direction: bool,
+    left: bool,
     current_car_len: i32,
     /// Cycles in 0..=2.
     offset: usize,
@@ -134,9 +136,9 @@ impl Road {
             cars: [false; 7],
             current_car_len: 0,
             offset: 0,
-            direction: rand::random(),
+            left: rand::random(),
         };
-        for x in 0..7 {
+        for _ in 0..7 {
             road.advance_road();
         }
 
@@ -168,7 +170,7 @@ impl Road {
             self.current_car_len -= 1;
         }
 
-        if self.direction {
+        if self.left {
             self.cars.rotate_left(1);
             self.cars[6] = new_tile;
         } else {
@@ -181,12 +183,17 @@ impl Road {
         self.cars[x as usize]
     }
 
-    fn visualize(&self) -> Vec<Block> {
+    fn visualize(&self) -> StripeRender {
         let car = Block::Red;
         let road = Block::Gray;
-        self.cars
-            .map(|t| if t { car } else { road })
-            .to_vec()
+        let blocks: [Block; 7] = core::array::from_fn(|i| {
+            if self.cars[i] { car } else { road }
+        });
+        StripeRender::new(blocks, Some(Offset {
+            offset: self.offset,
+            left: self.left,
+            fill: Block::Gray,
+        }))
     }
 }
 
@@ -204,28 +211,93 @@ pub enum Block {
 
 impl Block {
     fn color_coded(&self) -> String {
+        self.render_len(3)
+    }
+
+    fn render_len(&self, len: usize) -> String {
+        let mut block = String::new();
+        for _ in 0..len {block.push('█') }
         match self {
-            Block::Green => "███".dark_green().to_string(),
-            Block::BrightGreen => "███".green().to_string(),
-            Block::White => "███".white().to_string(),
-            Block::Gray => "███".dark_grey().to_string(),
-            Block::DarkYellow => "███".dark_yellow().to_string(),
-            Block::Red => "███".red().to_string(),
-            Block::Black => "███".black().to_string(),
+            Block::Green => block.dark_green().to_string(),
+            Block::BrightGreen => block.green().to_string(),
+            Block::White => block.white().to_string(),
+            Block::Gray => block.dark_grey().to_string(),
+            Block::DarkYellow => block.dark_yellow().to_string(),
+            Block::Red => block.red().to_string(),
+            Block::Black => block.black().to_string(),
         }
     }
 }
 
-pub trait Render {
-    fn render(&self) -> String;
+pub struct StripeRender {
+    blocks: [Block; 7],
+
+    offset: Option<Offset>,
+
+    overlay: [Option<Block>; 7],
 }
 
-impl Render for Vec<Block> {
-    fn render(&self) -> String {
-        let mut res = String::new();
-        for block in self {
-            res.push_str(&block.color_coded());
+impl StripeRender {
+    fn default() -> Self {
+        Self::new([Block::Black; 7], None)
+    }
+
+    fn new(blocks: [Block; 7], offset: Option<Offset>) -> Self {
+        StripeRender {
+            blocks,
+            offset,
+            overlay: [None; 7],
         }
+    }
+
+    pub fn render(&self) -> String {
+        // TODO:
+        // - Fix displaying overlay at start/end position
+        // - Don't render Offset for overlay
+        let mut res = String::new();
+        let mut blocks = self.blocks.iter().enumerate();
+
+        if let Some(offset) = &self.offset {
+            if offset.left {
+                let (_, first) = blocks.next().unwrap();
+                res.push_str(&first.render_len((3 - offset.offset).max(0)));
+            } else {
+                res.push_str(&offset.fill.render_len(offset.offset))
+            }
+        }
+
+        while let Some((idx, block)) = blocks.next() {
+            let mut block = *block;
+            if let Some(overlay) = self.overlay[idx] {
+                block = overlay;
+            }
+            res.push_str(&block.color_coded());
+            if idx == 5 && self.offset.as_ref().is_some_and(|o| !o.left) {
+                break;
+            }
+        }
+
+        if let Some(offset) = &self.offset {
+            if offset.left {
+                res.push_str(&offset.fill.render_len(offset.offset))
+            } else {
+                let (_, first) = blocks.next().unwrap();
+                res.push_str(&first.render_len((3 - offset.offset).max(0)));
+            }
+        }
+
         res
     }
+
+    pub fn add_overlay(&mut self, idx: usize, block: Block) {
+        self.overlay[idx] = Some(block);
+    }
+}
+
+struct Offset {
+    /// How many third of a block the render should be offset.
+    offset: usize,
+    fill: Block,
+    /// Weather offset should be applied to the left instead of the right.
+    left: bool,
 }

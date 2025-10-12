@@ -1,11 +1,8 @@
-use std::fs::File;
-use std::io::{stdin, stdout, Read, Write};
-use std::os::fd::AsRawFd;
-use std::process::exit;
-use std::time::Duration;
-use crossterm::{cursor, event, terminal, ExecutableCommand, QueueableCommand};
 use crossterm::event::Event;
+use crossterm::{cursor, event, terminal, ExecutableCommand, QueueableCommand};
 use crossy_terminal::map::MapState;
+use std::io::{stdout, Write};
+use std::time::Duration;
 
 fn main() {
     let mut stdout = stdout();

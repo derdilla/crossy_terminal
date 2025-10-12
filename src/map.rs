@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
-use crossterm::style::Stylize;
 use rayon::prelude::*;
-use crate::stripe::{Block, Render, Stripe};
+use crate::stripe::{Block, Stripe};
 
 const ROW_COUNT: usize = 20;
 
@@ -89,7 +88,7 @@ impl MapState {
             .map(|(idx, stripe)| {
                 let mut stripe = stripe.visualize();
                 if idx == MAX_PLAYER_Y_INDEX - self.player_down as usize {
-                    stripe[self.player_x as usize] = Block::White;
+                    stripe.add_overlay(self.player_x as usize, Block::White);
                 }
                 stripe.render()
             })
