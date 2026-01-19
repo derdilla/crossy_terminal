@@ -255,15 +255,15 @@ enum ColoredChar {
 }
 
 impl ColoredChar {
-    fn get_color(&self) -> String {
+    fn get_color(&self, block: &char) -> String {
         match self {
-            ColoredChar::Green => '█'.dark_green().to_string(),
-            ColoredChar::BrightGreen => '█'.green().to_string(),
-            ColoredChar::White => '█'.white().to_string(),
-            ColoredChar::Gray => '█'.dark_grey().to_string(),
-            ColoredChar::DarkYellow => '█'.dark_yellow().to_string(),
-            ColoredChar::Red => '█'.red().to_string(),
-            ColoredChar::Black => '█'.black().to_string(),
+            ColoredChar::Green => block.dark_green().to_string(),
+            ColoredChar::BrightGreen => block.green().to_string(),
+            ColoredChar::White => block.white().to_string(),
+            ColoredChar::Gray => block.dark_grey().to_string(),
+            ColoredChar::DarkYellow => block.dark_yellow().to_string(),
+            ColoredChar::Red => block.red().to_string(),
+            ColoredChar::Black => block.black().to_string(),
         }
     }
 }
@@ -324,7 +324,7 @@ impl StripeRender {
         res
     }
 
-    pub fn render(&self) -> String {
+    pub fn render(&self, phase: WallOfDeathPhase) -> String {
         let mut stripe = self.render_base();
 
         // apply overlay
@@ -337,7 +337,8 @@ impl StripeRender {
         }
 
         // render
-        stripe.par_iter().map(|e| e.get_color()).collect()
+        let block = phase.to_block_char();
+        stripe.par_iter().map(|e| e.get_color(&block)).collect()
     }
 
     pub fn add_overlay(&mut self, idx: usize, block: Block) {
@@ -351,4 +352,25 @@ struct Offset {
     fill: Block,
     /// Weather offset should be applied to the left instead of the right.
     left: bool,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum WallOfDeathPhase {
+    Normal,
+    Muddy,
+    Shaky,
+    Risky,
+    Gone
+}
+
+impl WallOfDeathPhase {
+    fn to_block_char(&self) -> char {
+        match self {
+            WallOfDeathPhase::Normal => '█',
+            WallOfDeathPhase::Muddy => '▓',
+            WallOfDeathPhase::Shaky => '▒',
+            WallOfDeathPhase::Risky => '░',
+            WallOfDeathPhase::Gone => ' ',
+        }
+    }
 }
