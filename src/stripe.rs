@@ -2,6 +2,7 @@ use std::ops::Div;
 use crossterm::style::Stylize;
 use rand::distr::weighted::WeightedIndex;
 use rand::prelude::Distribution;
+use rayon::prelude::*;
 
 // TODO: add 2 for padding, allowing to display more from the side
 pub const STRIPE_LENGTH: usize = 7;
@@ -216,21 +217,53 @@ pub enum Block {
 }
 
 impl Block {
-    fn color_coded(&self) -> String {
+    fn color_coded(&self) -> Vec<ColoredChar> {
         self.render_len(TILE_WIDTH)
     }
 
-    fn render_len(&self, len: usize) -> String {
-        let mut block = String::new();
-        for _ in 0..len {block.push('█') }
+    fn render_len(&self, len: usize) -> Vec<ColoredChar> {
+        let mut block = Vec::new();
+        for _ in 0..len {
+            block.push(self.to_char())
+        }
+        block
+    }
+
+    fn to_char(&self) -> ColoredChar {
         match self {
-            Block::Green => block.dark_green().to_string(),
-            Block::BrightGreen => block.green().to_string(),
-            Block::White => block.white().to_string(),
-            Block::Gray => block.dark_grey().to_string(),
-            Block::DarkYellow => block.dark_yellow().to_string(),
-            Block::Red => block.red().to_string(),
-            Block::Black => block.black().to_string(),
+            Block::Green => ColoredChar::Green,
+            Block::BrightGreen => ColoredChar::BrightGreen,
+            Block::White => ColoredChar::White,
+            Block::Gray => ColoredChar::Gray,
+            Block::DarkYellow => ColoredChar::DarkYellow,
+            Block::Red => ColoredChar::Red,
+            Block::Black => ColoredChar::Black,
+        }
+    }
+}
+
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum ColoredChar {
+    Green,
+    BrightGreen,
+    White,
+    Gray,
+    DarkYellow,
+    Red,
+    Black,
+}
+
+impl ColoredChar {
+    fn get_color(&self) -> String {
+        match self {
+            ColoredChar::Green => '█'.dark_green().to_string(),
+            ColoredChar::BrightGreen => '█'.green().to_string(),
+            ColoredChar::White => '█'.white().to_string(),
+            ColoredChar::Gray => '█'.dark_grey().to_string(),
+            ColoredChar::DarkYellow => '█'.dark_yellow().to_string(),
+            ColoredChar::Red => '█'.red().to_string(),
+            ColoredChar::Black => '█'.black().to_string(),
         }
     }
 }
@@ -256,52 +289,55 @@ impl StripeRender {
         }
     }
 
-    pub fn render(&self) -> String {
-        let mut res = String::new();
+    /// Renders everything but the overlay to row of colored characters.
+    fn render_base(&self) -> Vec<ColoredChar> {
+        let mut res = Vec::new();
         let mut blocks = self.blocks.iter().enumerate();
 
+        // First block. Requires special handling to apply offset for the rest of the stripe
         if let Some(offset) = &self.offset {
             if offset.left {
                 let (_, first) = blocks.next().unwrap();
-                res.push_str(&first.render_len((TILE_WIDTH - offset.offset).max(0)));
+                res.append(&mut first.render_len((TILE_WIDTH - offset.offset).max(0)));
             } else {
-                res.push_str(&offset.fill.render_len(offset.offset))
+                res.append(&mut offset.fill.render_len(offset.offset))
             }
         }
 
+        // Middle
         while let Some((idx, block)) = blocks.next() {
-            let mut block = *block;
-            let mut rendered_block = None;
-
-            if let Some(Some(_overlay)) = self.overlay.get(idx+1) {
-                if let Some(offset) = &self.offset {
-                    rendered_block = Some(block.render_len((TILE_WIDTH - offset.offset).max(0)));
-                }
-            } else if idx >= 2 && let Some(Some(_overlay)) = self.overlay.get(idx-1) {
-                if let Some(offset) = &self.offset {
-                    rendered_block = Some(block.render_len(offset.offset.min(TILE_WIDTH)));
-                }
-            }
-            if let Some(overlay) = self.overlay[idx] {
-                block = overlay;
-            }
-
-            res.push_str(&rendered_block.unwrap_or(block.color_coded()));
+            res.append(&mut block.color_coded());
             if idx == 5 && self.offset.as_ref().is_some_and(|o| !o.left) {
                 break;
             }
         }
 
+        // End. Requires special handling to cancel offset effects
         if let Some(offset) = &self.offset {
             if offset.left {
-                res.push_str(&offset.fill.render_len(offset.offset))
+                res.append(&mut offset.fill.render_len(offset.offset));
             } else {
                 let (_, first) = blocks.next().unwrap();
-                res.push_str(&first.render_len((3 - offset.offset).max(0)));
+                res.append(&mut first.render_len((3 - offset.offset).max(0)));
+            }
+        }
+        res
+    }
+
+    pub fn render(&self) -> String {
+        let mut stripe = self.render_base();
+
+        // apply overlay
+        for (idx, block) in self.overlay.iter().enumerate() {
+            if let Some(block) = block {
+                for i in 0..TILE_WIDTH {
+                    stripe[idx * TILE_WIDTH + i] = block.to_char();
+                }
             }
         }
 
-        res
+        // render
+        stripe.par_iter().map(|e| e.get_color()).collect()
     }
 
     pub fn add_overlay(&mut self, idx: usize, block: Block) {
